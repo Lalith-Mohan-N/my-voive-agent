@@ -10,17 +10,18 @@ import { CallControls } from '@/components/dashboard/CallControls';
 import { NoiseLevelIndicator } from '@/components/dashboard/NoiseLevelIndicator';
 import { RiskPredictionCard } from '@/components/dashboard/RiskPredictionCard';
 import { ClarificationPanel } from '@/components/dashboard/ClarificationPanel';
+import { AudioPipelineVisualizer } from '@/components/dashboard/AudioPipelineVisualizer';
 import { useRealtimeCase } from '@/hooks/useRealtimeCase';
 import { useRealtimeTranscript } from '@/hooks/useRealtimeTranscript';
 import { useCallStatus } from '@/hooks/useCallStatus';
 import { useRiskPredictions } from '@/hooks/useRiskPredictions';
 import { usePendingClarifications } from '@/hooks/usePendingClarifications';
-import { useState, useCallback } from 'react';
+import { useRetellCall } from '@/hooks/useRetellCall';
 
 export default function DashboardPage() {
   const { activeCase, loading: caseLoading } = useRealtimeCase();
   const { entries, loading: transcriptLoading } = useRealtimeTranscript(activeCase?.id ?? null);
-  const { callStatus, setCallStatus, latestVitals } = useCallStatus(
+  const { callStatus, latestVitals } = useCallStatus(
     activeCase?.status ?? null,
     activeCase?.id ?? null
   );
@@ -28,35 +29,20 @@ export default function DashboardPage() {
   const { latestClarification, loading: clarificationLoading } = usePendingClarifications(
     activeCase?.id ?? null
   );
-  const [controlLoading, setControlLoading] = useState(false);
 
-  const handleStartCall = useCallback(async () => {
-    setControlLoading(true);
-    try {
-      // In production, this would initiate a Retell call via their Web SDK
-      // For now, we set the status to show the UI transition
-      setCallStatus('ringing');
-      setTimeout(() => {
-        setCallStatus('active');
-        setControlLoading(false);
-      }, 2000);
-    } catch (error) {
-      console.error('Failed to start call:', error);
-      setCallStatus('error');
-      setControlLoading(false);
-    }
-  }, [setCallStatus]);
+  // Real Retell Web SDK + audio pipeline hook
+  const { state: retellState, startCall, endCall } = useRetellCall();
 
-  const handleEndCall = useCallback(async () => {
-    setControlLoading(true);
-    try {
-      setCallStatus('ended');
-    } catch (error) {
-      console.error('Failed to end call:', error);
-    } finally {
-      setControlLoading(false);
-    }
-  }, [setCallStatus]);
+  // Derive effective call status: if Retell is registering/active, use that;
+  // otherwise fall back to the Supabase-driven status from webhook lifecycle.
+  const effectiveCallStatus =
+    retellState.status === 'registering'
+      ? 'registering'
+      : retellState.status === 'active'
+        ? 'active'
+        : retellState.status === 'error'
+          ? 'error'
+          : callStatus;
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
@@ -66,8 +52,12 @@ export default function DashboardPage() {
         {/* ─── Left Column: Status + Environment + Case + Controls + Clarifications ─── */}
         <div className="flex flex-col gap-4 overflow-y-auto custom-scrollbar">
           <CallStatusPanel
-            status={callStatus}
+            status={effectiveCallStatus}
             startTime={activeCase?.createdAt}
+          />
+          <AudioPipelineVisualizer
+            metrics={retellState.audioMetrics}
+            isActive={effectiveCallStatus === 'active' || effectiveCallStatus === 'registering'}
           />
           <NoiseLevelIndicator level={activeCase?.noiseLevel ?? 'normal'} />
           <CaseInfoCard activeCase={activeCase} loading={caseLoading} />
@@ -76,10 +66,11 @@ export default function DashboardPage() {
             loading={clarificationLoading}
           />
           <CallControls
-            callStatus={callStatus}
-            onStartCall={handleStartCall}
-            onEndCall={handleEndCall}
-            loading={controlLoading}
+            callStatus={effectiveCallStatus}
+            onStartCall={startCall}
+            onEndCall={endCall}
+            loading={retellState.status === 'registering'}
+            error={retellState.error}
           />
         </div>
 

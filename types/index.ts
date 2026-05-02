@@ -6,7 +6,7 @@
 export type UrgencyLevel = 'CRITICAL' | 'URGENT' | 'MEDIUM' | 'LOW';
 
 /** Call lifecycle states */
-export type CallStatus = 'idle' | 'ringing' | 'active' | 'ended' | 'error';
+export type CallStatus = 'idle' | 'registering' | 'ringing' | 'active' | 'ended' | 'error';
 
 /** Noise environment levels */
 export type NoiseLevel = 'low' | 'normal' | 'high' | 'extreme';

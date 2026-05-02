@@ -3,7 +3,7 @@
 > Ultra-reliable voice AI for high-stress, hands-busy medical environments.
 > Real-time emergency case management with noise-adaptive clarity.
 
-![Phase](https://img.shields.io/badge/Phase-1%20Core%20Voice%20Loop-00ff88)
+![Phase](https://img.shields.io/badge/Phase-3%20Live%20Voice%20%2B%20Agent%20Test%20Lab-00ff88)
 ![Next.js](https://img.shields.io/badge/Next.js-16.2.4-black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6)
 ![License](https://img.shields.io/badge/License-Private-red)
@@ -18,6 +18,9 @@ VitaVoice is an AI-powered medical voice assistant designed for Emergency Medica
 - **Noise-Adaptive Clarity Mode** — automatically detects noisy environments and adapts
 - **Real-time live dashboard** — transcript, vitals, urgency tracking
 - **Automated urgency classification** — CRITICAL, URGENT, MEDIUM, LOW
+- **Double-confirmation safety loop** — all critical actions require verbal confirmation
+- **Web Audio API preprocessing** — noise gate + compressor + normalisation before STT
+- **Agent Test Lab** (`/test-agent`) — stress-scenario injection + live audio visualiser
 
 ## Architecture
 
@@ -44,7 +47,7 @@ VitaVoice is an AI-powered medical voice assistant designed for Emergency Medica
 ┌──────────────────────┴──────────────────────────┐
 │           Retell AI (Voice Orchestration)         │
 │                                                   │
-│    Deepgram Nova-3 → Groq Llama 3.1 → ElevenLabs │
+│  Deepgram Nova-3 → Groq Llama 3.1 70B → ElevenLabs│
 │      (STT)            (LLM)           (TTS)      │
 └──────────────────────────────────────────────────┘
 ```
@@ -59,6 +62,7 @@ VitaVoice is an AI-powered medical voice assistant designed for Emergency Medica
 | Text-to-Speech | ElevenLabs Flash v2.5 |
 | Frontend | Next.js 16 + React 19 + Tailwind CSS 4 |
 | Database | Supabase (PostgreSQL + Realtime) |
+| Audio Preprocessing | Web Audio API (browser) |
 | Animations | Framer Motion + CSS Keyframes |
 | Hosting | Vercel + Supabase |
 
@@ -71,6 +75,7 @@ VitaVoice is an AI-powered medical voice assistant designed for Emergency Medica
 - Supabase account
 - Retell AI account
 - Groq API key
+- A microphone (for live voice calls)
 
 ### Setup
 
@@ -84,7 +89,7 @@ npm install
 
 # 3. Set up environment variables
 cp .env.local.example .env.local
-# Edit .env.local with your API keys
+# Edit .env.local with your API keys (see .env.local.example for all required keys)
 
 # 4. Run the database migration
 # Copy contents of supabase/migrations/001_initial_schema.sql
@@ -96,11 +101,16 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) to see the dashboard.
 
+Open [http://localhost:3000/test-agent](http://localhost:3000/test-agent) for the **Agent Test Lab** with live audio visualiser and stress-scenario injection.
+
 ## Project Structure
 
 ```
 ├── app/
 │   ├── api/retell/webhook/route.ts    # Retell webhook handler
+│   ├── api/retell/tools/route.ts      # Retell tool execution
+│   ├── api/retell/call/route.ts       # Create live Retell web calls
+│   ├── test-agent/page.tsx            # Agent Test Lab demo
 │   ├── globals.css                     # Dark medical theme
 │   ├── layout.tsx                      # Root layout
 │   └── page.tsx                        # Main dashboard
@@ -112,7 +122,11 @@ Open [http://localhost:3000](http://localhost:3000) to see the dashboard.
 │   │   ├── UrgencyBadge.tsx
 │   │   ├── VitalsGrid.tsx
 │   │   ├── CaseInfoCard.tsx
-│   │   └── CallControls.tsx
+│   │   ├── CallControls.tsx
+│   │   ├── AudioPipelineVisualizer.tsx
+│   │   ├── NoiseLevelIndicator.tsx
+│   │   ├── RiskPredictionCard.tsx
+│   │   └── ClarificationPanel.tsx
 │   └── ui/                            # Reusable UI primitives
 │       ├── Card.tsx
 │       ├── Badge.tsx
@@ -122,10 +136,14 @@ Open [http://localhost:3000](http://localhost:3000) to see the dashboard.
 ├── hooks/                             # React hooks (realtime)
 │   ├── useRealtimeTranscript.ts
 │   ├── useRealtimeCase.ts
-│   └── useCallStatus.ts
+│   ├── useCallStatus.ts
+│   ├── useRiskPredictions.ts
+│   ├── usePendingClarifications.ts
+│   └── useRetellCall.ts
 ├── lib/                               # Core libraries
 │   ├── supabase/                      # Supabase clients + types
 │   ├── retell/                        # Retell SDK + webhook logic
+│   ├── audio/                         # Web Audio API pipeline
 │   ├── constants.ts                   # App constants
 │   └── utils.ts                       # Utility functions
 ├── types/                             # Shared TypeScript types
@@ -138,16 +156,19 @@ Open [http://localhost:3000](http://localhost:3000) to see the dashboard.
 
 | Method | Path | Description |
 |--------|------|-------------|
+| Method | Path | Description |
+|--------|------|-------------|
 | `POST` | `/api/retell/webhook` | Retell AI webhook receiver |
-| `GET` | `/api/retell/webhook` | Webhook health check |
+| `POST` | `/api/retell/tools` | Retell tool execution handler |
+| `POST` | `/api/retell/call` | Create a live Retell web call (returns `access_token`) |
 
 ## Phase Roadmap
 
 | Phase | Feature | Status |
 |-------|---------|--------|
-| 1 | Core Voice Loop + Live Dashboard | ✅ Current |
-| 2 | Double-Confirmation Safety Loop | 🔜 Planned |
-| 3 | Predictive Risk Radar | 🔜 Planned |
+| 1 | Core Voice Loop + Live Dashboard | ✅ |
+| 2 | Double-Confirmation Safety Loop + Tool Calling | ✅ |
+| 3 | Live Retell Web SDK + Audio Pipeline + Agent Test Lab | ✅ Current |
 
 ## Testing
 

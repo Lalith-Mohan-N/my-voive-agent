@@ -13,15 +13,18 @@ interface CallStatusPanelProps {
 
 const STATUS_DISPLAY: Record<CallStatus, { label: string; description: string; dotStatus: 'active' | 'critical' | 'idle' | 'warning' }> = {
   idle: { label: 'Standby', description: 'Waiting for incoming call...', dotStatus: 'idle' },
+  registering: { label: 'Connecting', description: 'Registering with voice service...', dotStatus: 'warning' },
   ringing: { label: 'Incoming', description: 'Call connecting...', dotStatus: 'warning' },
   active: { label: 'Active Call', description: 'VitaVoice is listening...', dotStatus: 'active' },
   ended: { label: 'Call Ended', description: 'Call completed successfully', dotStatus: 'idle' },
   error: { label: 'Error', description: 'Connection issue detected', dotStatus: 'critical' },
 };
 
+const FALLBACK_DISPLAY = { label: 'Unknown', description: 'Unknown status', dotStatus: 'idle' as const };
+
 export function CallStatusPanel({ status, startTime }: CallStatusPanelProps) {
   const [elapsed, setElapsed] = useState(0);
-  const display = STATUS_DISPLAY[status];
+  const display = STATUS_DISPLAY[status] ?? FALLBACK_DISPLAY;
 
   useEffect(() => {
     if (status !== 'active' || !startTime) {

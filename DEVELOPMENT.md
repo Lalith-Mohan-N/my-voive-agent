@@ -27,6 +27,7 @@ Fill in each value:
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Project Settings → API → anon/public |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → service_role |
 | `GROQ_API_KEY` | [Groq Console](https://console.groq.com) → API Keys |
+| `RETELL_AGENT_ID` | Retell AI Dashboard → Agents → copy agent ID |
 
 ### 2. Database Setup
 
@@ -104,6 +105,35 @@ Supabase Realtime → Dashboard (WebSocket)
 3. **Urgency detection** — Dual approach: explicit tags `[CRITICAL]` from the LLM system prompt, plus keyword-based fallback detection for common medical emergencies.
 
 4. **Vitals extraction** — Regex-based pattern matching extracts vital signs from transcript text (HR, BP, SpO2, Temp, RR, GCS).
+
+---
+
+## Common Errors
+
+### `Missing Supabase environment variables` at runtime
+
+**Symptom:**
+```
+Error: Missing Supabase environment variables. Ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set.
+```
+
+**Cause:** `.env.local` does not exist or the variables are empty.
+
+**Fix:**
+```bash
+cp .env.local.example .env.local
+# Then open .env.local and paste real values from your Supabase project dashboard:
+# NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+# NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+# SUPABASE_SERVICE_ROLE_KEY=eyJ...
+```
+Restart the dev server after editing `.env.local` — Next.js does **not** hot-reload env changes.
+
+### `RETELL_AGENT_ID` not found when starting a call
+
+**Symptom:** `POST /api/retell/call` returns `{"error":"Missing agent_id"}` or a 500.
+
+**Fix:** Add `RETELL_AGENT_ID=your_agent_id_here` to `.env.local`. You can find the agent ID in the Retell AI Dashboard under **Agents** → your agent name.
 
 ---
 
