@@ -68,8 +68,24 @@ export function LiveTranscript({ entries, loading = false }: LiveTranscriptProps
                 entry.speaker === 'system' ? 'justify-center' : ''
               }`}
             >
-              {entry.speaker === 'system' ? (
-                <div className="text-[10px] text-white/20 italic px-3 py-1 rounded-full bg-white/[0.02] border border-white/[0.04]">
+              {entry.speaker === 'system' || entry.eventType !== 'transcript' ? (
+                <div
+                  className={`text-[10px] italic px-3 py-1.5 rounded-full border ${
+                    entry.eventType === 'clarification_request'
+                      ? 'text-[#ff9f1c] bg-[#ff9f1c]/5 border-[#ff9f1c]/20'
+                      : entry.eventType === 'tool_call'
+                      ? 'text-[#4dabf7] bg-[#4dabf7]/5 border-[#4dabf7]/20'
+                      : entry.eventType === 'risk_alert'
+                      ? 'text-[#ff3b5c] bg-[#ff3b5c]/5 border-[#ff3b5c]/20'
+                      : entry.eventType === 'confirmation_needed'
+                      ? 'text-[#ff9f1c] bg-[#ff9f1c]/5 border-[#ff9f1c]/20 font-bold'
+                      : 'text-white/20 bg-white/[0.02] border-white/[0.04]'
+                  }`}
+                >
+                  {entry.eventType === 'clarification_request' && '❓ '}
+                  {entry.eventType === 'tool_call' && '🔧 '}
+                  {entry.eventType === 'risk_alert' && '⚠️ '}
+                  {entry.eventType === 'confirmation_needed' && '🔒 '}
                   {entry.content}
                 </div>
               ) : (

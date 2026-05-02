@@ -1,0 +1,169 @@
+{
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "create_emergency_case",
+        "description": "Create a new emergency case record in the live database. Call immediately when a new patient is identified or the situation changes significantly.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "patient_name": {
+              "type": "string",
+              "description": "Patient name if known. Use 'Unknown' if unidentified."
+            },
+            "location": {
+              "type": "string",
+              "description": "Current location or landmark. E.g. 'NH-44 near Koyambedu', 'Sector 22 Chandigarh'."
+            },
+            "chief_complaint": {
+              "type": "string",
+              "description": "Primary complaint or incident description. Keep concise."
+            },
+            "urgency_level": {
+              "type": "string",
+              "enum": ["CRITICAL", "URGENT", "MEDIUM", "LOW"],
+              "description": "Urgency classification based on patient condition."
+            }
+          },
+          "required": ["patient_name", "location", "chief_complaint", "urgency_level"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "log_vitals",
+        "description": "Log patient vital signs into the database for real-time dashboard tracking. Call every time vitals are spoken or measured.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "case_id": {
+              "type": "string",
+              "description": "UUID of the active emergency case. If unknown, pass 'current' and the system will resolve it."
+            },
+            "heart_rate": {
+              "type": "number",
+              "description": "Heart rate in beats per minute."
+            },
+            "bp_systolic": {
+              "type": "number",
+              "description": "Systolic blood pressure."
+            },
+            "bp_diastolic": {
+              "type": "number",
+              "description": "Diastolic blood pressure."
+            },
+            "spo2": {
+              "type": "number",
+              "description": "Oxygen saturation percentage."
+            },
+            "temperature": {
+              "type": "number",
+              "description": "Body temperature in degrees Celsius."
+            },
+            "respiratory_rate": {
+              "type": "number",
+              "description": "Respiratory rate per minute."
+            },
+            "gcs": {
+              "type": "number",
+              "description": "Glasgow Coma Scale score (3-15)."
+            },
+            "timestamp": {
+              "type": "string",
+              "description": "ISO 8601 timestamp. Omit to use server time."
+            }
+          },
+          "required": ["case_id"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_patient_history",
+        "description": "Retrieve prior emergency cases and timeline for a patient by name. Use to check allergies, chronic conditions, or recent admissions.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "patient_name": {
+              "type": "string",
+              "description": "Full or partial patient name to search."
+            }
+          },
+          "required": ["patient_name"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "find_nearest_hospital",
+        "description": "Find the nearest available hospital with emergency capacity. Returns distance, capacity, and specialties.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "location": {
+              "type": "string",
+              "description": "Current location string or GPS coordinates."
+            },
+            "required_specialty": {
+              "type": "string",
+              "description": "Preferred specialty if known, e.g. 'trauma', 'cardiology', 'neurosurgery'."
+            }
+          },
+          "required": ["location"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "notify_supervisor",
+        "description": "Send an urgent alert to the medical supervisor. Use only for CRITICAL or URGENT situations requiring oversight.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "case_id": {
+              "type": "string",
+              "description": "UUID of the active case. Pass 'current' if unknown."
+            },
+            "message": {
+              "type": "string",
+              "description": "Concise alert message. E.g. 'CRITICAL: Cardiac arrest, CPR in progress, ETA 8 min'."
+            },
+            "urgency": {
+              "type": "string",
+              "enum": ["CRITICAL", "URGENT"],
+              "description": "Alert urgency level."
+            }
+          },
+          "required": ["case_id", "message", "urgency"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "set_noise_level",
+        "description": "Update the environment noise level on the dashboard so the EMS team can see conditions. Call when the agent detects high noise, when the user asks for a repeat, or when noise subsides.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "case_id": {
+              "type": "string",
+              "description": "UUID of the active case. Pass 'current' if unknown."
+            },
+            "level": {
+              "type": "string",
+              "enum": ["low", "normal", "high", "extreme"],
+              "description": "Detected noise level. 'high' or 'extreme' will activate adaptive clarity mode on the dashboard."
+            }
+          },
+          "required": ["level"]
+        }
+      }
+    }
+  ]
+}

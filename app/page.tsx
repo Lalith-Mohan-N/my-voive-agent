@@ -7,9 +7,14 @@ import { UrgencyBadge } from '@/components/dashboard/UrgencyBadge';
 import { VitalsGrid } from '@/components/dashboard/VitalsGrid';
 import { CaseInfoCard } from '@/components/dashboard/CaseInfoCard';
 import { CallControls } from '@/components/dashboard/CallControls';
+import { NoiseLevelIndicator } from '@/components/dashboard/NoiseLevelIndicator';
+import { RiskPredictionCard } from '@/components/dashboard/RiskPredictionCard';
+import { ClarificationPanel } from '@/components/dashboard/ClarificationPanel';
 import { useRealtimeCase } from '@/hooks/useRealtimeCase';
 import { useRealtimeTranscript } from '@/hooks/useRealtimeTranscript';
 import { useCallStatus } from '@/hooks/useCallStatus';
+import { useRiskPredictions } from '@/hooks/useRiskPredictions';
+import { usePendingClarifications } from '@/hooks/usePendingClarifications';
 import { useState, useCallback } from 'react';
 
 export default function DashboardPage() {
@@ -17,6 +22,10 @@ export default function DashboardPage() {
   const { entries, loading: transcriptLoading } = useRealtimeTranscript(activeCase?.id ?? null);
   const { callStatus, setCallStatus, latestVitals } = useCallStatus(
     activeCase?.status ?? null,
+    activeCase?.id ?? null
+  );
+  const { latestPrediction, loading: riskLoading } = useRiskPredictions(activeCase?.id ?? null);
+  const { latestClarification, loading: clarificationLoading } = usePendingClarifications(
     activeCase?.id ?? null
   );
   const [controlLoading, setControlLoading] = useState(false);
@@ -54,13 +63,18 @@ export default function DashboardPage() {
       <DashboardHeader />
 
       <main className="dashboard-grid flex-1 overflow-hidden">
-        {/* ─── Left Column: Status + Case + Controls ─── */}
+        {/* ─── Left Column: Status + Environment + Case + Controls + Clarifications ─── */}
         <div className="flex flex-col gap-4 overflow-y-auto custom-scrollbar">
           <CallStatusPanel
             status={callStatus}
             startTime={activeCase?.createdAt}
           />
+          <NoiseLevelIndicator level={activeCase?.noiseLevel ?? 'normal'} />
           <CaseInfoCard activeCase={activeCase} loading={caseLoading} />
+          <ClarificationPanel
+            clarification={latestClarification}
+            loading={clarificationLoading}
+          />
           <CallControls
             callStatus={callStatus}
             onStartCall={handleStartCall}
@@ -74,10 +88,11 @@ export default function DashboardPage() {
           <LiveTranscript entries={entries} loading={transcriptLoading} />
         </div>
 
-        {/* ─── Right Column: Urgency + Vitals ─── */}
+        {/* ─── Right Column: Urgency + Vitals + Risk ─── */}
         <div className="flex flex-col gap-4 overflow-y-auto custom-scrollbar">
           <UrgencyBadge urgency={activeCase?.urgencyLevel ?? 'LOW'} />
           <VitalsGrid vitals={latestVitals} loading={caseLoading} />
+          <RiskPredictionCard prediction={latestPrediction} loading={riskLoading} />
         </div>
       </main>
     </div>

@@ -7,7 +7,8 @@ export type RetellEventType =
   | 'call_started'
   | 'call_ended'
   | 'call_analyzed'
-  | 'agent_message';
+  | 'agent_message'
+  | 'tool_call_invoked';
 
 /** Base webhook event structure */
 export interface RetellWebhookEvent {
@@ -58,4 +59,42 @@ export interface RetellCallAnalysis {
 export interface RetellWebhookResponse {
   received: boolean;
   error?: string;
+}
+
+// ─── Tool Calling Types ──────────────────────────────────────
+
+/** Retell tool call request payload */
+export interface RetellToolCallRequest {
+  call_id: string;
+  tool_name: string;
+  arguments: Record<string, unknown>;
+}
+
+/** Result returned from a tool handler to the Retell tool endpoint */
+export interface RetellToolCallResult {
+  success: boolean;
+  data?: Record<string, unknown>;
+  error?: string;
+  requires_confirmation?: boolean;
+  confirmation_id?: string;
+  instruction_text?: string;
+}
+
+/** Noise level update tool payload */
+export interface SetNoiseLevelPayload {
+  case_id?: string;
+  level: 'low' | 'normal' | 'high' | 'extreme';
+}
+
+/** Log vitals tool payload */
+export interface LogVitalsPayload {
+  case_id: string;
+  heart_rate?: number;
+  bp_systolic?: number;
+  bp_diastolic?: number;
+  spo2?: number;
+  temperature?: number;
+  respiratory_rate?: number;
+  gcs?: number;
+  timestamp?: string;
 }

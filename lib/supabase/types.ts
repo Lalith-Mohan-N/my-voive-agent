@@ -64,7 +64,7 @@ export interface Database {
         Row: {
           id: string;
           case_id: string;
-          event_type: 'transcript' | 'status_change' | 'vital_logged' | 'system' | 'urgency_change';
+          event_type: 'transcript' | 'status_change' | 'vital_logged' | 'system' | 'urgency_change' | 'clarification_request' | 'tool_call' | 'risk_alert' | 'confirmation_needed';
           speaker: 'agent' | 'user' | 'system' | null;
           content: string;
           urgency_tag: 'CRITICAL' | 'URGENT' | 'MEDIUM' | 'LOW' | null;
@@ -74,7 +74,7 @@ export interface Database {
         Insert: {
           id?: string;
           case_id: string;
-          event_type: 'transcript' | 'status_change' | 'vital_logged' | 'system' | 'urgency_change';
+          event_type: 'transcript' | 'status_change' | 'vital_logged' | 'system' | 'urgency_change' | 'clarification_request' | 'tool_call' | 'risk_alert' | 'confirmation_needed';
           speaker?: 'agent' | 'user' | 'system' | null;
           content: string;
           urgency_tag?: 'CRITICAL' | 'URGENT' | 'MEDIUM' | 'LOW' | null;
@@ -83,7 +83,7 @@ export interface Database {
         };
         Update: {
           case_id?: string;
-          event_type?: 'transcript' | 'status_change' | 'vital_logged' | 'system' | 'urgency_change';
+          event_type?: 'transcript' | 'status_change' | 'vital_logged' | 'system' | 'urgency_change' | 'clarification_request' | 'tool_call' | 'risk_alert' | 'confirmation_needed';
           speaker?: 'agent' | 'user' | 'system' | null;
           content?: string;
           urgency_tag?: 'CRITICAL' | 'URGENT' | 'MEDIUM' | 'LOW' | null;
@@ -161,6 +161,96 @@ export interface Database {
           longitude?: number | null;
         };
       };
+      conversation_memory: {
+        Row: {
+          id: string;
+          case_id: string;
+          role: 'agent' | 'user' | 'system';
+          content: string;
+          reasoning_chain: string | null;
+          metadata: Record<string, unknown>;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          case_id: string;
+          role: 'agent' | 'user' | 'system';
+          content: string;
+          reasoning_chain?: string | null;
+          metadata?: Record<string, unknown>;
+          created_at?: string;
+        };
+        Update: {
+          case_id?: string;
+          role?: 'agent' | 'user' | 'system';
+          content?: string;
+          reasoning_chain?: string | null;
+          metadata?: Record<string, unknown>;
+        };
+      };
+      pending_confirmations: {
+        Row: {
+          id: string;
+          call_id: string;
+          case_id: string | null;
+          tool_name: string;
+          payload: Record<string, unknown>;
+          status: 'pending' | 'confirmed' | 'expired' | 'rejected';
+          instruction_text: string | null;
+          created_at: string;
+          resolved_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          call_id: string;
+          case_id?: string | null;
+          tool_name: string;
+          payload?: Record<string, unknown>;
+          status?: 'pending' | 'confirmed' | 'expired' | 'rejected';
+          instruction_text?: string | null;
+          created_at?: string;
+          resolved_at?: string | null;
+        };
+        Update: {
+          call_id?: string;
+          case_id?: string | null;
+          tool_name?: string;
+          payload?: Record<string, unknown>;
+          status?: 'pending' | 'confirmed' | 'expired' | 'rejected';
+          instruction_text?: string | null;
+          resolved_at?: string | null;
+        };
+      };
+      risk_predictions: {
+        Row: {
+          id: string;
+          case_id: string;
+          risk_type: string;
+          confidence: number;
+          details: string;
+          recommended_action: string | null;
+          metadata: Record<string, unknown>;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          case_id: string;
+          risk_type: string;
+          confidence: number;
+          details: string;
+          recommended_action?: string | null;
+          metadata?: Record<string, unknown>;
+          created_at?: string;
+        };
+        Update: {
+          case_id?: string;
+          risk_type?: string;
+          confidence?: number;
+          details?: string;
+          recommended_action?: string | null;
+          metadata?: Record<string, unknown>;
+        };
+      };
     };
   };
 }
@@ -170,3 +260,6 @@ export type EmergencyCaseRow = Database['public']['Tables']['emergency_cases']['
 export type CaseTimelineRow = Database['public']['Tables']['case_timeline']['Row'];
 export type VitalsLogRow = Database['public']['Tables']['vitals_log']['Row'];
 export type HospitalRow = Database['public']['Tables']['hospitals']['Row'];
+export type ConversationMemoryRow = Database['public']['Tables']['conversation_memory']['Row'];
+export type PendingConfirmationRow = Database['public']['Tables']['pending_confirmations']['Row'];
+export type RiskPredictionRow = Database['public']['Tables']['risk_predictions']['Row'];

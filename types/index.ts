@@ -23,7 +23,11 @@ export type TimelineEventType =
   | 'status_change'
   | 'vital_logged'
   | 'system'
-  | 'urgency_change';
+  | 'urgency_change'
+  | 'clarification_request'
+  | 'tool_call'
+  | 'risk_alert'
+  | 'confirmation_needed';
 
 /** A single transcript entry displayed in the live feed */
 export interface TranscriptEntry {
@@ -82,4 +86,40 @@ export interface Hospital {
   specialties: string[];
   latitude: number | null;
   longitude: number | null;
+}
+
+/** AI-assessed patient risk prediction */
+export interface RiskPrediction {
+  id: string;
+  caseId: string;
+  riskType: string;
+  confidence: number;
+  details: string;
+  recommendedAction: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+/** Conversation memory entry for LLM context */
+export interface ConversationMemoryEntry {
+  id: string;
+  caseId: string;
+  role: Speaker;
+  content: string;
+  reasoningChain: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+/** Pending double-confirmation safety record */
+export interface PendingConfirmation {
+  id: string;
+  callId: string;
+  caseId: string | null;
+  toolName: string;
+  payload: Record<string, unknown>;
+  status: 'pending' | 'confirmed' | 'expired' | 'rejected';
+  instructionText: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
 }
