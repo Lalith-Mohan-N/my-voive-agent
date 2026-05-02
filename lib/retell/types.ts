@@ -8,7 +8,8 @@ export type RetellEventType =
   | 'call_ended'
   | 'call_analyzed'
   | 'agent_message'
-  | 'tool_call_invoked';
+  | 'tool_call_invoked'
+  | 'user_message';
 
 /** Base webhook event structure */
 export interface RetellWebhookEvent {

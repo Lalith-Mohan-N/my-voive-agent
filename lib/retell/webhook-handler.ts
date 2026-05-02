@@ -5,6 +5,8 @@
 import { createServerClient } from '@/lib/supabase/server';
 import type { Database } from '@/lib/supabase/types';
 import { parseUrgencyFromText, extractVitalsFromText } from '@/lib/utils';
+import { classifyIntent, detectUrgency, isProvidingInfo } from '@/lib/services/intent-classifier';
+import { storeConversationTurn, extractEntities } from '@/lib/services/conversation-memory';
 import type { RetellWebhookEvent, RetellCallAnalysis } from './types';
 
 const NOISE_KEYWORDS = ['noisy environment', 'speaking clearer', 'repeat if needed', 'noisy', 'background noise'];
@@ -29,6 +31,9 @@ export async function handleWebhookEvent(event: RetellWebhookEvent): Promise<voi
       break;
     case 'agent_message':
       await handleAgentMessage(event);
+      break;
+    case 'user_message':
+      await handleUserMessage(event);
       break;
     default:
       console.log(`Unhandled event type: ${event.event}`);
@@ -183,6 +188,90 @@ async function handleCallAnalyzed(event: RetellWebhookEvent): Promise<void> {
   });
 }
 
+/** Handle user_message: classify intent, extract entities, store memory */
+async function handleUserMessage(event: RetellWebhookEvent): Promise<void> {
+  const supabase = createServerClient();
+  const { call } = event;
+
+  if (!call.transcript) return;
+
+  const { data: caseData } = await (supabase
+    .from('emergency_cases') as any)
+    .select('id, noise_level, noise_adaptive_mode, agent_active, assigned_doctor_id')
+    .eq('retell_call_id', call.call_id)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle() as any;
+
+  if (!caseData) return;
+
+  const transcript = call.transcript;
+  const transcriptLower = transcript.toLowerCase();
+
+  // 1. Classify user intent
+  const classification = classifyIntent(transcript);
+  const entities = extractEntities(transcript, 'conversation');
+
+  // 2. Detect urgency from user message
+  const detectedUrgency = detectUrgency(transcript);
+  if (detectedUrgency !== 'LOW') {
+    await (supabase.from('emergency_cases') as any)
+      .update({ urgency_level: detectedUrgency })
+      .eq('id', caseData.id);
+
+    await (supabase.from('case_timeline') as any).insert({
+      case_id: caseData.id,
+      event_type: 'urgency_change',
+      speaker: 'system',
+      content: `Urgency updated to ${detectedUrgency} via user utterance.`,
+      urgency_tag: detectedUrgency,
+    });
+  }
+
+  // 3. Detect noise mentions and update case
+  const isNoisy = NOISE_KEYWORDS.some((kw) => transcriptLower.includes(kw));
+  if (isNoisy && caseData.noise_level !== 'high' && caseData.noise_level !== 'extreme') {
+    await (supabase.from('emergency_cases') as any)
+      .update({
+        noise_level: 'high',
+        noise_adaptive_mode: true,
+      })
+      .eq('id', caseData.id);
+
+    await (supabase.from('case_timeline') as any).insert({
+      case_id: caseData.id,
+      event_type: 'system',
+      speaker: 'system',
+      content: 'Noisy environment detected. Adaptive clarity mode activated.',
+    });
+  }
+
+  // 4. Store user message in conversation memory with intent and entities
+  await storeConversationTurn(
+    caseData.id,
+    'user',
+    transcript,
+    {
+      intent: classification.intent,
+      entities: { ...entities, ...classification.entities },
+    }
+  );
+
+  // 5. If doctor has taken over, notify via timeline
+  if (!caseData.agent_active && caseData.assigned_doctor_id) {
+    await (supabase.from('case_timeline') as any).insert({
+      case_id: caseData.id,
+      event_type: 'system',
+      speaker: 'system',
+      content: 'User message received while doctor is handling case.',
+      metadata: { user_transcript: transcript, intent: classification.intent },
+    });
+    return;
+  }
+
+}
+
 /** Handle agent_message: real-time urgency updates, noise detection, memory logging */
 async function handleAgentMessage(event: RetellWebhookEvent): Promise<void> {
   const supabase = createServerClient();
@@ -192,7 +281,7 @@ async function handleAgentMessage(event: RetellWebhookEvent): Promise<void> {
 
   const { data: caseData } = await (supabase
     .from('emergency_cases') as any)
-    .select('id, noise_level, noise_adaptive_mode')
+    .select('id, noise_level, noise_adaptive_mode, agent_active, assigned_doctor_id')
     .eq('retell_call_id', call.call_id)
     .eq('status', 'active')
     .order('created_at', { ascending: false })
@@ -237,11 +326,18 @@ async function handleAgentMessage(event: RetellWebhookEvent): Promise<void> {
     });
   }
 
-  // 3. Log agent message to conversation memory
-  await (supabase.from('conversation_memory') as any).insert({
-    case_id: caseData.id,
-    role: 'agent',
-    content: call.transcript,
-    metadata: { detected_urgency: detectedUrgency, noise_adaptive: isNoisy },
-  });
+  // 3. Determine if agent is asking a question
+  const isQuestion = call.transcript.includes('?') ||
+    /^(what|where|when|why|how|who|is|are|do|does|can|could|would)/i.test(call.transcript.trim());
+
+  // 4. Store agent message in conversation memory
+  await storeConversationTurn(
+    caseData.id,
+    'agent',
+    call.transcript,
+    {
+      intent: isQuestion ? 'question' : 'statement',
+      entities: detectedUrgency ? { urgency_detected: detectedUrgency } : {},
+    }
+  );
 }

@@ -45,6 +45,11 @@ export async function POST(request: Request) {
     const call = await retell.call.createWebCall({
       agent_id: resolvedAgentId,
       metadata: body.metadata || {},
+      retell_llm_dynamic_variables: {
+        conversation_context: 'New emergency call started. No information gathered yet.',
+        known_facts: '{}',
+        suggested_next: 'What is your current location and what is the emergency?',
+      },
     });
 
     return NextResponse.json(

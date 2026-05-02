@@ -86,6 +86,8 @@ export async function GET() {
       'find_nearest_hospital',
       'notify_supervisor',
       'set_noise_level',
+      'provide_first_aid',
+      'check_doctor_status',
     ],
     timestamp: new Date().toISOString(),
   });

@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { initAudioPipeline, closeAudioPipeline, type AudioMetrics } from '@/lib/audio/audio-pipeline';
+import type { LocationData } from './useDeviceLocation';
 
 type RetellConnectionState = 'idle' | 'registering' | 'active' | 'ended' | 'error';
 
@@ -9,15 +10,18 @@ export interface RetellCallState {
   status: RetellConnectionState;
   error: string | null;
   callId: string | null;
+  caseId: string | null;
   accessToken: string | null;
   audioMetrics: AudioMetrics | null;
   micPermission: 'unknown' | 'granted' | 'denied';
+  location: LocationData | null;
 }
 
 export interface UseRetellCallReturn {
   state: RetellCallState;
   startCall: () => Promise<void>;
   endCall: () => Promise<void>;
+  updateCaseId: (caseId: string) => void;
 }
 
 /**
@@ -30,9 +34,11 @@ export function useRetellCall(onMetrics?: (m: AudioMetrics) => void): UseRetellC
     status: 'idle',
     error: null,
     callId: null,
+    caseId: null,
     accessToken: null,
     audioMetrics: null,
     micPermission: 'unknown',
+    location: null,
   });
 
   const retellRef = useRef<any>(null);
@@ -92,14 +98,42 @@ export function useRetellCall(onMetrics?: (m: AudioMetrics) => void): UseRetellC
         captureDeviceId: 'default',
       });
 
-      setState({
+      // 5. Get GPS location for hospital search
+      let location: LocationData | null = null;
+      try {
+        if (navigator.geolocation) {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 60000,
+            });
+          });
+          location = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            speed: position.coords.speed,
+            heading: position.coords.heading,
+            altitude: position.coords.altitude,
+            timestamp: position.timestamp,
+          };
+        }
+      } catch {
+        // GPS not available, continue without it
+        console.log('GPS not available, will use location text fallback');
+      }
+
+      setState((prev) => ({
+        ...prev,
         status: 'active',
         error: null,
         callId: call_id,
         accessToken: access_token,
         audioMetrics: null,
         micPermission: 'granted',
-      });
+        location,
+      }));
 
       // Listen for call end
       const onEnded = () => {
@@ -133,6 +167,26 @@ export function useRetellCall(onMetrics?: (m: AudioMetrics) => void): UseRetellC
     }
   }, [handleMetrics]);
 
+  const updateCaseId = useCallback((caseId: string) => {
+    setState((prev) => ({ ...prev, caseId }));
+
+    // If we have location, send it to server
+    if (state.location) {
+      fetch('/api/location/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          case_id: caseId,
+          latitude: state.location.latitude,
+          longitude: state.location.longitude,
+          accuracy: state.location.accuracy,
+          speed: state.location.speed,
+          heading: state.location.heading,
+        }),
+      }).catch((err) => console.error('Failed to send location:', err));
+    }
+  }, [state.location]);
+
   const endCall = useCallback(async () => {
     try {
       retellRef.current?.stopCall?.();
@@ -146,7 +200,9 @@ export function useRetellCall(onMetrics?: (m: AudioMetrics) => void): UseRetellC
       ...prev,
       status: 'ended',
       callId: null,
+      caseId: null,
       accessToken: null,
+      location: null,
     }));
   }, []);
 
@@ -157,5 +213,5 @@ export function useRetellCall(onMetrics?: (m: AudioMetrics) => void): UseRetellC
     };
   }, [endCall]);
 
-  return { state, startCall, endCall };
+  return { state, startCall, endCall, updateCaseId };
 }
