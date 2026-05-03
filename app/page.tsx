@@ -36,8 +36,10 @@ export default function DashboardPage() {
   // Real Retell Web SDK + audio pipeline hook
   const { state: retellState, startCall, endCall } = useRetellCall();
 
-  // Derive effective call status: if Retell is registering/active, use that;
-  // otherwise fall back to the Supabase-driven status from webhook lifecycle.
+  // Derive effective call status: Retell's browser-side state is the source of truth
+  // for the current session. Only fall back to Supabase-driven status when Retell
+  // is actively connected (registering/active). If Retell is idle/ended, the user
+  // is NOT on a call — even if Supabase has a stale "active" case from a previous session.
   const effectiveCallStatus =
     retellState.status === 'registering'
       ? 'registering'
@@ -45,7 +47,9 @@ export default function DashboardPage() {
         ? 'active'
         : retellState.status === 'error'
           ? 'error'
-          : callStatus;
+          : retellState.status === 'ended'
+            ? 'ended'
+            : 'idle'; // idle — no active call, regardless of Supabase state
 
   // Scenario injection for demo / judge presentation (mirrors test-agent)
   const [injected, setInjected] = useState<string | null>(null);
@@ -110,6 +114,7 @@ export default function DashboardPage() {
             <CallStatusPanel
               status={effectiveCallStatus}
               startTime={activeCase?.createdAt}
+              timeoutWarning={retellState.timeoutWarning}
             />
             <AudioPipelineVisualizer
               metrics={retellState.audioMetrics}

@@ -6,6 +6,10 @@ import type { LocationData } from './useDeviceLocation';
 
 type RetellConnectionState = 'idle' | 'registering' | 'active' | 'ended' | 'error';
 
+// ─── Call Duration Limits ────────────────────────────────────
+const MAX_CALL_DURATION_MS = 30 * 60 * 1000;   // 30 minutes
+const WARNING_THRESHOLD_MS = 25 * 60 * 1000;    // 25 minutes — show warning
+
 export interface RetellCallState {
   status: RetellConnectionState;
   error: string | null;
@@ -15,6 +19,10 @@ export interface RetellCallState {
   audioMetrics: AudioMetrics | null;
   micPermission: 'unknown' | 'granted' | 'denied';
   location: LocationData | null;
+  /** True when the call has been running longer than WARNING_THRESHOLD_MS */
+  timeoutWarning: boolean;
+  /** Timestamp (epoch ms) when the call became active, null otherwise */
+  callStartedAt: number | null;
 }
 
 export interface UseRetellCallReturn {
@@ -31,6 +39,9 @@ export interface UseRetellCallReturn {
  *
  * GPS is fetched eagerly on mount so location is available immediately
  * when a call starts — the agent never has to ask "where are you?"
+ *
+ * Auto-timeout: calls are automatically ended after 30 minutes to
+ * prevent indefinitely-active sessions. A warning is surfaced at 25 min.
  */
 export function useRetellCall(onMetrics?: (m: AudioMetrics) => void): UseRetellCallReturn {
   const [state, setState] = useState<RetellCallState>({
@@ -42,11 +53,15 @@ export function useRetellCall(onMetrics?: (m: AudioMetrics) => void): UseRetellC
     audioMetrics: null,
     micPermission: 'unknown',
     location: null,
+    timeoutWarning: false,
+    callStartedAt: null,
   });
 
   const retellRef = useRef<any>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
   const locationRef = useRef<LocationData | null>(null);
+  const timeoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Metrics callback wrapper that updates local state too
   const handleMetrics = useCallback(
@@ -83,9 +98,60 @@ export function useRetellCall(onMetrics?: (m: AudioMetrics) => void): UseRetellC
     );
   }, []);
 
+  /** Clear both auto-timeout timers */
+  const clearTimeoutTimers = useCallback(() => {
+    if (timeoutTimerRef.current) {
+      clearTimeout(timeoutTimerRef.current);
+      timeoutTimerRef.current = null;
+    }
+    if (warningTimerRef.current) {
+      clearTimeout(warningTimerRef.current);
+      warningTimerRef.current = null;
+    }
+  }, []);
+
+  const endCall = useCallback(async () => {
+    clearTimeoutTimers();
+    try {
+      retellRef.current?.stopCall?.();
+    } catch {
+      // ignore
+    }
+    cleanupRef.current?.();
+    cleanupRef.current = null;
+    setState((prev: RetellCallState) => ({
+      ...prev,
+      status: 'ended',
+      callId: null,
+      caseId: null,
+      accessToken: null,
+      location: null,
+      timeoutWarning: false,
+      callStartedAt: null,
+    }));
+    await closeAudioPipeline();
+  }, [clearTimeoutTimers]);
+
+  /** Start auto-timeout timers when the call becomes active */
+  const startTimeoutTimers = useCallback(() => {
+    clearTimeoutTimers();
+
+    // Warning at 25 minutes
+    warningTimerRef.current = setTimeout(() => {
+      setState((prev) => ({ ...prev, timeoutWarning: true }));
+      console.log('[VitaVoice] Call approaching 30-minute timeout — warning shown');
+    }, WARNING_THRESHOLD_MS);
+
+    // Hard cutoff at 30 minutes
+    timeoutTimerRef.current = setTimeout(() => {
+      console.log('[VitaVoice] 30-minute timeout reached — auto-ending call');
+      endCall();
+    }, MAX_CALL_DURATION_MS);
+  }, [clearTimeoutTimers, endCall]);
+
   const startCall = useCallback(async () => {
     try {
-      setState((prev: RetellCallState) => ({ ...prev, status: 'registering', error: null }));
+      setState((prev: RetellCallState) => ({ ...prev, status: 'registering', error: null, timeoutWarning: false }));
 
       // 1. Request mic with WebRTC noise suppression enabled
       // Browser-level processing runs BEFORE our custom pipeline,
@@ -163,6 +229,8 @@ export function useRetellCall(onMetrics?: (m: AudioMetrics) => void): UseRetellC
         console.log('GPS refresh failed, using cached location if any');
       }
 
+      const now = Date.now();
+
       setState((prev) => ({
         ...prev,
         status: 'active',
@@ -172,21 +240,30 @@ export function useRetellCall(onMetrics?: (m: AudioMetrics) => void): UseRetellC
         audioMetrics: null,
         micPermission: 'granted',
         location,
+        timeoutWarning: false,
+        callStartedAt: now,
       }));
+
+      // 6. Start auto-timeout timers (30 min hard limit, 25 min warning)
+      startTimeoutTimers();
 
       // Listen for call end
       const onEnded = () => {
+        clearTimeoutTimers();
         closeAudioPipeline();
         setState((prev: RetellCallState) => ({
           ...prev,
           status: 'ended',
           callId: null,
           accessToken: null,
+          timeoutWarning: false,
+          callStartedAt: null,
         }));
       };
       client.on('call_ended', onEnded);
       client.on('error', (err: unknown) => {
         console.error('Retell client error:', err);
+        clearTimeoutTimers();
         const errMsg = err instanceof Error ? err.message : String(err);
         setState((prev: RetellCallState) => ({ ...prev, status: 'error', error: errMsg }));
       });
@@ -196,6 +273,7 @@ export function useRetellCall(onMetrics?: (m: AudioMetrics) => void): UseRetellC
       };
     } catch (err) {
       console.error('Failed to start call:', err);
+      clearTimeoutTimers();
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('Permission') || msg.includes('denied')) {
         setState((prev: RetellCallState) => ({ ...prev, status: 'error', error: msg, micPermission: 'denied' }));
@@ -204,7 +282,7 @@ export function useRetellCall(onMetrics?: (m: AudioMetrics) => void): UseRetellC
       }
       closeAudioPipeline();
     }
-  }, [handleMetrics]);
+  }, [handleMetrics, startTimeoutTimers, clearTimeoutTimers]);
 
   const updateCaseId = useCallback((caseId: string) => {
     setState((prev) => ({ ...prev, caseId }));
@@ -227,31 +305,14 @@ export function useRetellCall(onMetrics?: (m: AudioMetrics) => void): UseRetellC
     }
   }, [state.location]);
 
-  const endCall = useCallback(async () => {
-    try {
-      retellRef.current?.stopCall?.();
-    } catch {
-      // ignore
-    }
-    cleanupRef.current?.();
-    cleanupRef.current = null;
-    setState((prev: RetellCallState) => ({
-      ...prev,
-      status: 'ended',
-      callId: null,
-      caseId: null,
-      accessToken: null,
-      location: null,
-    }));
-    await closeAudioPipeline();
-  }, []);
-
   // Auto-cleanup on unmount
   useEffect(() => {
     return () => {
+      clearTimeoutTimers();
       endCall();
     };
-  }, [endCall]);
+  }, [endCall, clearTimeoutTimers]);
 
   return { state, startCall, endCall, updateCaseId };
 }
+

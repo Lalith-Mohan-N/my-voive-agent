@@ -55,6 +55,7 @@ export async function POST(request: Request) {
     }
 
     // Create a web call (Retell handles the LLM, STT, TTS pipeline)
+    // agent_override tunes TTS speed and responsiveness per-call
     const call = await retell.call.createWebCall({
       agent_id: resolvedAgentId,
       metadata: body.metadata || {},
@@ -62,6 +63,17 @@ export async function POST(request: Request) {
         conversation_context: context,
         known_facts: JSON.stringify(knownFacts),
         suggested_next: suggestedNext,
+      },
+      agent_override: {
+        agent: {
+          voice_speed: 0.9,                    // Slightly slower than default → natural human pace
+          responsiveness: 0.5,                 // Wait a beat before responding → less robotic
+          interruption_sensitivity: 0.6,       // Allow user to interrupt but filter background noise
+          enable_backchannel: true,            // Natural "uh-huh" / "okay" while user speaks
+          language: 'en-IN',                   // Optimize for Indian English accents
+          max_call_duration_ms: 1_800_000,     // 30-minute hard server-side limit
+          end_call_after_silence_ms: 120_000,  // Auto-end after 2 minutes of silence
+        },
       },
     });
 

@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 interface CallStatusPanelProps {
   status: CallStatus;
   startTime?: string | null;
+  timeoutWarning?: boolean;
 }
 
 const STATUS_DISPLAY: Record<CallStatus, { label: string; description: string; dotStatus: 'active' | 'critical' | 'idle' | 'warning' }> = {
@@ -22,7 +23,7 @@ const STATUS_DISPLAY: Record<CallStatus, { label: string; description: string; d
 
 const FALLBACK_DISPLAY = { label: 'Unknown', description: 'Unknown status', dotStatus: 'idle' as const };
 
-export function CallStatusPanel({ status, startTime }: CallStatusPanelProps) {
+export function CallStatusPanel({ status, startTime, timeoutWarning }: CallStatusPanelProps) {
   const [elapsed, setElapsed] = useState(0);
   const display = STATUS_DISPLAY[status] ?? FALLBACK_DISPLAY;
 
@@ -60,6 +61,13 @@ export function CallStatusPanel({ status, startTime }: CallStatusPanelProps) {
           </div>
         )}
 
+        {/* Timeout warning — call approaching 30-minute limit */}
+        {status === 'active' && timeoutWarning && (
+          <div className="mt-3 rounded-lg bg-[#ff9f1c]/10 border border-[#ff9f1c]/30 px-3 py-2 text-xs text-[#ff9f1c] animate-pulse">
+            ⚠ Call approaching 30-minute limit. Will auto-end soon.
+          </div>
+        )}
+
         {status === 'idle' && (
           <div className="flex items-center justify-center py-6 rounded-xl border border-dashed border-white/[0.08]">
             <div className="text-center">
@@ -72,3 +80,4 @@ export function CallStatusPanel({ status, startTime }: CallStatusPanelProps) {
     </Card>
   );
 }
+
