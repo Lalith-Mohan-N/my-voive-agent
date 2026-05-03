@@ -52,6 +52,10 @@ export async function POST(request: Request) {
       knownFacts.location_accuracy = accuracy ? `${accuracy}m` : 'unknown';
       context = `Emergency call started. Device GPS is active (${latitude.toFixed(5)}, ${longitude.toFixed(5)}).`;
       suggestedNext = 'Tell me what emergency you are dealing with. I already have your location.';
+    } else {
+      // No GPS available — explicitly prompt the agent to ask for location verbally
+      context = 'Emergency call started. Device GPS is NOT available. IMPORTANT INSTRUCTION: You MUST ask the user for their current address or nearest landmark IMMEDIATELY, before anything else.';
+      suggestedNext = 'Please tell me your current location — address or nearest landmark, I cannot track your GPS.';
     }
 
     // Create a web call (Retell handles the LLM, STT, TTS pipeline)
@@ -66,11 +70,10 @@ export async function POST(request: Request) {
       },
       agent_override: {
         agent: {
-          voice_speed: 0.9,                    // Slightly slower than default → natural human pace
-          responsiveness: 0.5,                 // Wait a beat before responding → less robotic
-          interruption_sensitivity: 0.6,       // Allow user to interrupt but filter background noise
-          enable_backchannel: true,            // Natural "uh-huh" / "okay" while user speaks
-          language: 'en-IN',                   // Optimize for Indian English accents
+          voice_speed: 1.2,                    // Very fast speech for urgency
+          responsiveness: 1.0,                 // Respond immediately
+          interruption_sensitivity: 0.9,       // Noise-resistant, harder to interrupt
+          enable_backchannel: false,           // No filler sounds — save time
           max_call_duration_ms: 1_800_000,     // 30-minute hard server-side limit
           end_call_after_silence_ms: 120_000,  // Auto-end after 2 minutes of silence
         },

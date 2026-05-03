@@ -213,6 +213,19 @@ async function handleUserMessage(event: RetellWebhookEvent): Promise<void> {
   const classification = classifyIntent(transcript);
   const entities = extractEntities(transcript, 'conversation');
 
+  // 1.5 Update case details from entities in real-time
+  const caseUpdates: any = {};
+  if (entities.patient_name) caseUpdates.patient_name = entities.patient_name;
+  if (entities.patient_age) caseUpdates.patient_age = entities.patient_age;
+  if (entities.location) caseUpdates.location = entities.location;
+  if (entities.symptoms && Array.isArray(entities.symptoms) && entities.symptoms.length > 0) {
+    caseUpdates.chief_complaint = entities.symptoms.join(', ');
+  }
+  
+  if (Object.keys(caseUpdates).length > 0) {
+    await (supabase.from('emergency_cases') as any).update(caseUpdates).eq('id', caseData.id);
+  }
+
   // 2. Detect urgency from user message
   const detectedUrgency = detectUrgency(transcript);
   if (detectedUrgency !== 'LOW') {
@@ -226,6 +239,28 @@ async function handleUserMessage(event: RetellWebhookEvent): Promise<void> {
       speaker: 'system',
       content: `Urgency updated to ${detectedUrgency} via user utterance.`,
       urgency_tag: detectedUrgency,
+    });
+  }
+
+  // 2.5 Detect vitals in real-time from user message
+  const vitals = extractVitalsFromText(transcript);
+  if (Object.keys(vitals).length > 0) {
+    await (supabase.from('vitals_log') as any).insert({
+      case_id: caseData.id,
+      heart_rate: vitals.heartRate ?? null,
+      blood_pressure_systolic: vitals.bloodPressureSystolic ?? null,
+      blood_pressure_diastolic: vitals.bloodPressureDiastolic ?? null,
+      spo2: vitals.spo2 ?? null,
+      temperature: vitals.temperature ?? null,
+      respiratory_rate: vitals.respiratoryRate ?? null,
+      gcs_score: vitals.gcsScore ?? null,
+    });
+    
+    await (supabase.from('case_timeline') as any).insert({
+      case_id: caseData.id,
+      event_type: 'vital_logged',
+      speaker: 'system',
+      content: `Vitals extracted from user: ${Object.entries(vitals).map(([k,v]) => `${k}=${v}`).join(', ')}`,
     });
   }
 
@@ -305,6 +340,28 @@ async function handleAgentMessage(event: RetellWebhookEvent): Promise<void> {
       speaker: 'system',
       content: `Urgency updated to ${detectedUrgency} via agent detection.`,
       urgency_tag: detectedUrgency,
+    });
+  }
+
+  // 1.5 Detect vitals in real-time from agent utterance
+  const vitals = extractVitalsFromText(call.transcript);
+  if (Object.keys(vitals).length > 0) {
+    await (supabase.from('vitals_log') as any).insert({
+      case_id: caseData.id,
+      heart_rate: vitals.heartRate ?? null,
+      blood_pressure_systolic: vitals.bloodPressureSystolic ?? null,
+      blood_pressure_diastolic: vitals.bloodPressureDiastolic ?? null,
+      spo2: vitals.spo2 ?? null,
+      temperature: vitals.temperature ?? null,
+      respiratory_rate: vitals.respiratoryRate ?? null,
+      gcs_score: vitals.gcsScore ?? null,
+    });
+    
+    await (supabase.from('case_timeline') as any).insert({
+      case_id: caseData.id,
+      event_type: 'vital_logged',
+      speaker: 'system',
+      content: `Vitals verified by agent: ${Object.entries(vitals).map(([k,v]) => `${k}=${v}`).join(', ')}`,
     });
   }
 

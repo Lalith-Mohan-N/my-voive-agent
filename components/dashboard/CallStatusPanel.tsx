@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 
 interface CallStatusPanelProps {
   status: CallStatus;
-  startTime?: string | null;
+  startTime?: string | number | null;
   timeoutWarning?: boolean;
 }
 
@@ -32,8 +32,17 @@ export function CallStatusPanel({ status, startTime, timeoutWarning }: CallStatu
       setElapsed(0);
       return;
     }
-    const start = new Date(startTime).getTime();
-    const tick = () => setElapsed(Math.floor((Date.now() - start) / 1000));
+    
+    let startMs = 0;
+    if (typeof startTime === 'number') {
+      startMs = startTime;
+    } else {
+      // Ensure UTC parsing if Z is missing
+      const parseStr = startTime.endsWith('Z') || startTime.includes('+') ? startTime : `${startTime}Z`;
+      startMs = new Date(parseStr).getTime();
+    }
+    
+    const tick = () => setElapsed(Math.max(0, Math.floor((Date.now() - startMs) / 1000)));
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);

@@ -64,7 +64,7 @@ VitaVoice is an AI-powered medical voice assistant designed for Emergency Medica
 | Database | Supabase (PostgreSQL + Realtime) |
 | Audio Preprocessing | Web Audio API (browser) |
 | Animations | Framer Motion + CSS Keyframes |
-| Hosting | Vercel + Supabase |
+| Hosting | Netlify + Supabase |
 
 ## Quick Start
 
@@ -95,11 +95,12 @@ cp .env.local.example .env.local
 # Copy contents of supabase/migrations/001_initial_schema.sql
 # and run it in your Supabase SQL Editor
 
-# 5. Start the dev server
+# 5. Start the dev server (binds to 0.0.0.0 to allow LAN access)
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to see the dashboard.
+Open [http://localhost:3000](http://localhost:3000) to see the dashboard on your desktop.
+To test on mobile devices (Android/iOS) on the same network, navigate to `http://<your-local-ip>:3000`.
 
 Open [http://localhost:3000/test-agent](http://localhost:3000/test-agent) for the **Agent Test Lab** with live audio visualiser and stress-scenario injection.
 

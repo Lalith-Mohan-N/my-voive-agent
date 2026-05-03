@@ -1,19 +1,24 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Card, CardHeader, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { formatTimestamp } from '@/lib/utils';
 import type { TranscriptEntry } from '@/types';
+import { Send } from 'lucide-react';
 
 interface LiveTranscriptProps {
+  caseId?: string | null;
   entries: TranscriptEntry[];
   loading?: boolean;
+  userRole?: 'user' | 'doctor';
 }
 
-export function LiveTranscript({ entries, loading = false }: LiveTranscriptProps) {
+export function LiveTranscript({ caseId, entries, loading = false, userRole = 'user' }: LiveTranscriptProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [message, setMessage] = useState('');
+  const [sending, setSending] = useState(false);
 
   // Auto-scroll to bottom when new entries arrive
   useEffect(() => {
@@ -36,11 +41,10 @@ export function LiveTranscript({ entries, loading = false }: LiveTranscriptProps
         </div>
       </CardHeader>
 
-      <CardContent className="flex-1 overflow-hidden p-0">
+      <CardContent className="flex-1 overflow-hidden flex flex-col p-0">
         <div
           ref={scrollRef}
-          className="h-full overflow-y-auto px-5 py-4 space-y-3 scroll-smooth custom-scrollbar"
-          style={{ maxHeight: 'calc(100vh - 320px)' }}
+          className="flex-1 overflow-y-auto px-5 py-4 space-y-3 scroll-smooth custom-scrollbar"
         >
           {loading && (
             <div className="space-y-4 py-2">
@@ -96,10 +100,12 @@ export function LiveTranscript({ entries, loading = false }: LiveTranscriptProps
                       className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
                         entry.speaker === 'agent'
                           ? 'text-[#00ff88] bg-[#00ff88]/10'
+                          : entry.speaker === 'doctor'
+                          ? 'text-[#c084fc] bg-[#c084fc]/10'
                           : 'text-[#4dabf7] bg-[#4dabf7]/10'
                       }`}
                     >
-                      {entry.speaker === 'agent' ? 'VITA' : 'USER'}
+                      {entry.speaker === 'agent' ? 'VITA' : entry.speaker === 'doctor' ? 'DOC' : 'USER'}
                     </span>
                   </div>
 
@@ -121,6 +127,44 @@ export function LiveTranscript({ entries, loading = false }: LiveTranscriptProps
               )}
             </div>
           ))}
+        </div>
+
+        {/* Message Input Area */}
+        <div className="flex-shrink-0 border-t border-white/[0.06] p-3 bg-black/20">
+          <form 
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!message.trim() || !caseId || sending) return;
+              setSending(true);
+              try {
+                await fetch('/api/timeline/message', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ caseId, content: message.trim(), speaker: userRole })
+                });
+                setMessage('');
+              } finally {
+                setSending(false);
+              }
+            }}
+            className="flex gap-2"
+          >
+            <input
+              type="text"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              disabled={!caseId || sending}
+              placeholder={caseId ? "Type a message..." : "Waiting for case..."}
+              className="flex-1 bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-[#4dabf7]/50"
+            />
+            <button
+              type="submit"
+              disabled={!message.trim() || !caseId || sending}
+              className="bg-[#4dabf7]/20 hover:bg-[#4dabf7]/30 text-[#4dabf7] px-3 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          </form>
         </div>
       </CardContent>
     </Card>

@@ -14,8 +14,8 @@ export type NoiseLevel = 'low' | 'normal' | 'high' | 'extreme';
 /** Case lifecycle states */
 export type CaseStatus = 'active' | 'completed' | 'cancelled';
 
-/** Speaker in a conversation */
-export type Speaker = 'agent' | 'user' | 'system';
+/** Speaker classification */
+export type Speaker = 'agent' | 'user' | 'system' | 'doctor';
 
 /** Timeline event classification */
 export type TimelineEventType =
@@ -27,7 +27,8 @@ export type TimelineEventType =
   | 'clarification_request'
   | 'tool_call'
   | 'risk_alert'
-  | 'confirmation_needed';
+  | 'confirmation_needed'
+  | 'message';
 
 /** A single transcript entry displayed in the live feed */
 export interface TranscriptEntry {

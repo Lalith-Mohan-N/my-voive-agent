@@ -113,7 +113,7 @@ export default function DashboardPage() {
           <div className="flex flex-col gap-4 overflow-y-auto custom-scrollbar">
             <CallStatusPanel
               status={effectiveCallStatus}
-              startTime={activeCase?.createdAt}
+              startTime={retellState.callStartedAt || activeCase?.createdAt}
               timeoutWarning={retellState.timeoutWarning}
             />
             <AudioPipelineVisualizer
@@ -137,7 +137,7 @@ export default function DashboardPage() {
 
           {/* ─── Center: Live Transcript ─── */}
           <div className="overflow-hidden">
-            <LiveTranscript entries={entries} loading={transcriptLoading} />
+            <LiveTranscript caseId={activeCase?.id} entries={entries} loading={transcriptLoading} userRole="user" />
           </div>
 
           {/* ─── Right Column ─── */}

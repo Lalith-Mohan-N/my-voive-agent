@@ -230,11 +230,12 @@ npm run dev
 
 ---
 
-## Deployment (Vercel)
+## Deployment (Netlify)
 
 1. Push to GitHub
-2. Import project in [Vercel Dashboard](https://vercel.com)
-3. Add all environment variables from `.env.local`
-4. Set the webhook URL in Retell AI Dashboard to your Vercel URL:
-   `https://your-app.vercel.app/api/retell/webhook`
-5. Deploy
+2. Import project in [Netlify Dashboard](https://app.netlify.com)
+3. Netlify will automatically detect the `netlify.toml` configuration for SPA redirects and Next.js setup.
+4. Add all environment variables from `.env.local` in the Netlify site settings.
+5. Set the webhook URL in Retell AI Dashboard to your Netlify URL:
+   `https://your-app.netlify.app/api/retell/webhook`
+6. Deploy

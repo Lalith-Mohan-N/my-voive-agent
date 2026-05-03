@@ -160,6 +160,9 @@ export async function searchNearbyHospitals(
     // Sort by distance
     hospitals.sort((a, b) => (a.distance_km || 0) - (b.distance_km || 0));
 
+    // Filter out hospitals that are unreasonably far (> 20km) to avoid 2-hour drives
+    hospitals = hospitals.filter(h => (h.distance_km || 0) <= 20);
+
     // Cache the results
     cache.set(cacheKey, { data: hospitals, timestamp: Date.now() });
 
@@ -253,9 +256,21 @@ async function getSeedHospitals(
       (a.distance_km || 0) - (b.distance_km || 0)
     );
 
+    // Filter out hospitals that are too far (> 20km)
+    const validHospitals = hospitalsWithDistance.filter((h: Hospital) => (h.distance_km || 0) <= 20);
+
+    if (validHospitals.length === 0) {
+      return {
+        success: false,
+        hospitals: [],
+        source: 'error',
+        error: 'No hospitals found within a reasonable distance (20km).',
+      };
+    }
+
     return {
       success: true,
-      hospitals: hospitalsWithDistance.slice(0, 2),
+      hospitals: validHospitals.slice(0, 2),
       source: 'seed_data',
       location_query: `${latitude},${longitude}`,
     };
