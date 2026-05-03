@@ -82,7 +82,7 @@ export async function searchNearbyHospitals(
     }
     return {
       success: true,
-      hospitals: hospitals.slice(0, 3),
+      hospitals: hospitals.slice(0, 2),
       source: 'google_places',
     };
   }
@@ -255,7 +255,7 @@ async function getSeedHospitals(
 
     return {
       success: true,
-      hospitals: hospitalsWithDistance.slice(0, 3),
+      hospitals: hospitalsWithDistance.slice(0, 2),
       source: 'seed_data',
       location_query: `${latitude},${longitude}`,
     };

@@ -28,6 +28,9 @@ export interface UseRetellCallReturn {
  * Browser-side hook that wraps the Retell Web SDK + our audio pipeline.
  * Creates a real voice call via POST /api/retell/call, wires mic through
  * noise-gate/compressor/normalisation, then registers with Retell.
+ *
+ * GPS is fetched eagerly on mount so location is available immediately
+ * when a call starts — the agent never has to ask "where are you?"
  */
 export function useRetellCall(onMetrics?: (m: AudioMetrics) => void): UseRetellCallReturn {
   const [state, setState] = useState<RetellCallState>({
@@ -43,6 +46,7 @@ export function useRetellCall(onMetrics?: (m: AudioMetrics) => void): UseRetellC
 
   const retellRef = useRef<any>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
+  const locationRef = useRef<LocationData | null>(null);
 
   // Metrics callback wrapper that updates local state too
   const handleMetrics = useCallback(
@@ -52,6 +56,32 @@ export function useRetellCall(onMetrics?: (m: AudioMetrics) => void): UseRetellC
     },
     [onMetrics]
   );
+
+  /**
+   * Eagerly fetch GPS once on mount so it is ready before the user presses Start Call.
+   */
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const location: LocationData = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          speed: position.coords.speed,
+          heading: position.coords.heading,
+          altitude: position.coords.altitude,
+          timestamp: position.timestamp,
+        };
+        locationRef.current = location;
+        setState((prev) => ({ ...prev, location }));
+      },
+      () => {
+        // Silently fail — we will try again during startCall
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  }, []);
 
   const startCall = useCallback(async () => {
     try {
@@ -74,11 +104,19 @@ export function useRetellCall(onMetrics?: (m: AudioMetrics) => void): UseRetellC
       // 2. Run through our preprocessing pipeline
       const processedStream = await initAudioPipeline(micStream, handleMetrics);
 
-      // 3. Ask server to create a Retell web call
+      // 3. Ask server to create a Retell web call — include GPS if already known
+      const payload: Record<string, unknown> = {
+        metadata: { source: 'vitavoice-dashboard' },
+      };
+      if (locationRef.current) {
+        payload.latitude = locationRef.current.latitude;
+        payload.longitude = locationRef.current.longitude;
+        payload.accuracy = locationRef.current.accuracy;
+      }
       const res = await fetch('/api/retell/call', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ metadata: { source: 'vitavoice-dashboard' } }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -98,15 +136,15 @@ export function useRetellCall(onMetrics?: (m: AudioMetrics) => void): UseRetellC
         captureDeviceId: 'default',
       });
 
-      // 5. Get GPS location for hospital search
-      let location: LocationData | null = null;
+      // 5. Refresh GPS location in case the user moved
+      let location: LocationData | null = locationRef.current;
       try {
         if (navigator.geolocation) {
           const position = await new Promise<GeolocationPosition>((resolve, reject) => {
             navigator.geolocation.getCurrentPosition(resolve, reject, {
               enableHighAccuracy: true,
-              timeout: 10000,
-              maximumAge: 60000,
+              timeout: 5000,
+              maximumAge: 30000,
             });
           });
           location = {
@@ -118,10 +156,11 @@ export function useRetellCall(onMetrics?: (m: AudioMetrics) => void): UseRetellC
             altitude: position.coords.altitude,
             timestamp: position.timestamp,
           };
+          locationRef.current = location;
         }
       } catch {
-        // GPS not available, continue without it
-        console.log('GPS not available, will use location text fallback');
+        // GPS not available, continue with cached or null
+        console.log('GPS refresh failed, using cached location if any');
       }
 
       setState((prev) => ({
@@ -170,18 +209,19 @@ export function useRetellCall(onMetrics?: (m: AudioMetrics) => void): UseRetellC
   const updateCaseId = useCallback((caseId: string) => {
     setState((prev) => ({ ...prev, caseId }));
 
-    // If we have location, send it to server
-    if (state.location) {
+    // Auto-send cached GPS to server so the case record is updated immediately
+    const loc = locationRef.current ?? state.location;
+    if (loc) {
       fetch('/api/location/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           case_id: caseId,
-          latitude: state.location.latitude,
-          longitude: state.location.longitude,
-          accuracy: state.location.accuracy,
-          speed: state.location.speed,
-          heading: state.location.heading,
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+          accuracy: loc.accuracy,
+          speed: loc.speed,
+          heading: loc.heading,
         }),
       }).catch((err) => console.error('Failed to send location:', err));
     }

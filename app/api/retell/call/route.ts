@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const { agent_id } = body;
+    const { agent_id, latitude, longitude, accuracy } = body;
 
     // Use provided agent_id or fallback to env var
     const resolvedAgentId = agent_id || process.env.RETELL_AGENT_ID;
@@ -41,14 +41,27 @@ export async function POST(request: Request) {
 
     const retell = getRetellClient();
 
+    // Build known facts from GPS if available
+    const knownFacts: Record<string, string> = {};
+    let context = 'New emergency call started. No information gathered yet.';
+    let suggestedNext = 'What is the emergency you are dealing with?';
+
+    if (typeof latitude === 'number' && typeof longitude === 'number') {
+      knownFacts.device_latitude = String(latitude);
+      knownFacts.device_longitude = String(longitude);
+      knownFacts.location_accuracy = accuracy ? `${accuracy}m` : 'unknown';
+      context = `Emergency call started. Device GPS is active (${latitude.toFixed(5)}, ${longitude.toFixed(5)}).`;
+      suggestedNext = 'Tell me what emergency you are dealing with. I already have your location.';
+    }
+
     // Create a web call (Retell handles the LLM, STT, TTS pipeline)
     const call = await retell.call.createWebCall({
       agent_id: resolvedAgentId,
       metadata: body.metadata || {},
       retell_llm_dynamic_variables: {
-        conversation_context: 'New emergency call started. No information gathered yet.',
-        known_facts: '{}',
-        suggested_next: 'What is your current location and what is the emergency?',
+        conversation_context: context,
+        known_facts: JSON.stringify(knownFacts),
+        suggested_next: suggestedNext,
       },
     });
 

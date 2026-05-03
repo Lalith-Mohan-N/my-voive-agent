@@ -71,10 +71,24 @@ export async function POST(request: Request): Promise<NextResponse> {
     const supabase = createServerClient();
 
     // Check if email already exists
-    const { data: existingDoctor } = await (supabase.from('doctors') as any)
+    const {
+      data: existingDoctor,
+      error: existingError,
+    } = await (supabase.from('doctors') as any)
       .select('id')
       .eq('email', body.email)
       .maybeSingle() as any;
+
+    if (existingError && existingError.code !== 'PGRST116') {
+      console.error('Doctor lookup error:', existingError);
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Database error: ${existingError.message}`,
+        },
+        { status: 500 }
+      );
+    }
 
     if (existingDoctor) {
       return NextResponse.json(
@@ -104,9 +118,12 @@ export async function POST(request: Request): Promise<NextResponse> {
       .single() as any;
 
     if (error) {
-      console.error('Doctor registration error:', error);
+      console.error('Doctor registration insert error:', error);
       return NextResponse.json(
-        { success: false, error: 'Failed to create doctor account' },
+        {
+          success: false,
+          error: `Failed to create doctor account: ${error.message}`,
+        },
         { status: 500 }
       );
     }
