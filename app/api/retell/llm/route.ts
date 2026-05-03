@@ -20,7 +20,7 @@ interface RetellLLMResponse {
   response_complete?: boolean;
 }
 
-const GROQ_MODEL = 'llama-3.1-70b-versatile';
+const GROQ_MODEL = 'llama-3.3-70b-versatile';
 
 /**
  * POST /api/retell/llm

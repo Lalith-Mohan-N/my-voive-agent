@@ -195,7 +195,6 @@ export function useRetellCall(onMetrics?: (m: AudioMetrics) => void): UseRetellC
     }
     cleanupRef.current?.();
     cleanupRef.current = null;
-    await closeAudioPipeline();
     setState((prev: RetellCallState) => ({
       ...prev,
       status: 'ended',
@@ -204,6 +203,7 @@ export function useRetellCall(onMetrics?: (m: AudioMetrics) => void): UseRetellC
       accessToken: null,
       location: null,
     }));
+    await closeAudioPipeline();
   }, []);
 
   // Auto-cleanup on unmount

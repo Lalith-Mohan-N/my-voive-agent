@@ -175,8 +175,8 @@ function startMetricsLoop(
   const rawData = new Float32Array(state.rawAnalyser.fftSize);
   const procData = new Float32Array(state.processedAnalyser.fftSize);
 
-  // Aggressive noise gate threshold for field environments
-  const noiseGateThreshold = 0.04;  // ~-28 dB (was 0.015)
+  // Aggressive noise gate threshold for field environments (lowered for testing)
+  const noiseGateThreshold = 0.005;  // ~-46 dB (was 0.04)
 
   const tick = () => {
     if (!state.isRunning) return;
